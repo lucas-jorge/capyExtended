@@ -9,7 +9,6 @@ app_name = 'capyExtended'
 
 # List of URL patterns (endpoints) for the 'capyExtended' app API
 urlpatterns = [
-    path('', views.api_root),
     # --- Authentication and User Management ---
 
     # Endpoint: /api/register/
