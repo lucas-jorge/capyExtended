@@ -2,9 +2,6 @@
 
 # Necessary imports from Django and DRF
 from django.urls import path
-# Import the default DRF view to obtain token
-from rest_framework.authtoken import views as authtoken_views
-
 from . import views  # Import views from our 'capyExtended' app
 
 # Defines a 'namespace' to avoid name conflicts between apps
@@ -12,20 +9,13 @@ app_name = 'capyExtended'
 
 # List of URL patterns (endpoints) for the 'capyExtended' app API
 urlpatterns = [
-
+    path('', views.api_root),
     # --- Authentication and User Management ---
 
     # Endpoint: /api/register/
     # Method: POST
     # Action: Creates a new user. Open to anyone.
     path('register/', views.RegisterView.as_view(), name='register'),
-
-    # Endpoint: /api/api-token-auth/
-    # Method: POST
-    # Action: Receives 'username' (email) and 'password', returns the token.
-    #       This is the "login" endpoint for the token-based API.
-    path('api-token-auth/', authtoken_views.obtain_auth_token,
-         name='api_token_auth'),
 
     # Endpoint: /api/profile/
     # Methods: GET, PUT, PATCH

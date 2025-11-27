@@ -11,7 +11,9 @@ from rest_framework.request import Request  # For type hinting request
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.views import APIView
-from rest_framework.authtoken.models import Token # Import Token model
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.decorators import api_view
+from django.urls import reverse
 
 # Import Models
 from .models import CustomUser, Item
@@ -81,25 +83,22 @@ class ProfileView(generics.RetrieveUpdateAPIView):
 
 class LogoutView(APIView):
     """
-    Endpoint to log out the authenticated user by deleting their token.
+    Endpoint to log out the authenticated user by blacklisting their token.
     """
+
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request: Request) -> Response:
         """
-        Deletes the user's authentication token.
+        Blacklists the user's refresh token.
         """
-        # request.user is guaranteed to be authenticated due to permission_classes
-        if request.user.auth_token:
-            request.user.auth_token.delete()
-            return Response(
-                {"detail": "Successfully logged out."},
-                status=status.HTTP_200_OK
-            )
-        return Response(
-            {"detail": "No active token found."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        try:
+            refresh_token = request.data["refresh_token"]
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response(status=status.HTTP_205_RESET_CONTENT)
+        except Exception:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
 # --- Items ---
@@ -216,10 +215,14 @@ class RequestConfirmationEmailView(APIView):
         user.save(update_fields=['confirmation_token', 'token_created_at'])
 
         return Response(
-            {"message": "Confirmation token generated and 'sent' (simulated). "
-                        "Check the console.",
-             "token": str(new_token)},
-            status=status.HTTP_200_OK
+            {
+                "message": (
+                    "Confirmation token generated and 'sent' (simulated). "
+                    "Check the console."
+                ),
+                "token": str(new_token),
+            },
+            status=status.HTTP_200_OK,
         )
 
 
@@ -252,9 +255,13 @@ class ValidateConfirmationView(APIView):
 
         if not user.confirmation_token or not user.token_created_at:
             return Response(
-                {"error": "Nenhum processo de confirmação pendente encontrado. "
-                          "Solicite um novo token."},
-                status=status.HTTP_400_BAD_REQUEST
+                {
+                    "error": (
+                        "Nenhum processo de confirmação pendente encontrado. "
+                        "Solicite um novo token."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Verify token expiration
@@ -267,9 +274,8 @@ class ValidateConfirmationView(APIView):
             user.token_created_at = None
             user.save(update_fields=['confirmation_token', 'token_created_at'])
             return Response(
-                {"error": "Confirmation token expired. "
-                          "Please request a new one."},
-                status=status.HTTP_400_BAD_REQUEST
+                {"error": "Confirmation token expired. " "Please request a new one."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         # Compare tokens
@@ -279,7 +285,9 @@ class ValidateConfirmationView(APIView):
             user.token_created_at = None
             user.save(
                 update_fields=[
-                    'email_confirmed', 'confirmation_token', 'token_created_at'
+                    "email_confirmed",
+                    "confirmation_token",
+                    "token_created_at",
                 ]
             )
             return Response({"message": "Email confirmed successfully!"},
@@ -293,7 +301,7 @@ class RestrictedItemListView(generics.ListAPIView):
     """
     Endpoint to list restricted items (is_public=False).
     Accessible only by authenticated users AND with confirmed email.
-    Supports pagination, search, ordering, and filtering (same as public list).
+    Supports pagination, search, ordering, and filtering.
     """
     serializer_class = ItemSerializer
     permission_classes = [permissions.IsAuthenticated, IsEmailConfirmed]
@@ -335,3 +343,21 @@ class LegalInfoView(APIView):
             "privacy_policy_url": privacy_url
         }
         return Response(data, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def api_root(request, format=None):
+    """
+    Root endpoint that provides a list of available API endpoints.
+    """
+    return Response({
+        'register': reverse('capyExtended:register'),
+        'token_obtain_pair': reverse('token_obtain_pair'),
+        'token_refresh': reverse('token_refresh'),
+        'profile': reverse('capyExtended:profile'),
+        'change-password': reverse('capyExtended:change-password'),
+        'logout': reverse('capyExtended:logout'),
+        'public-items': reverse('capyExtended:public-item-list'),
+        'restricted-items': reverse('capyExtended:restricted-item-list'),
+        'legal': reverse('capyExtended:legal-info'),
+    })
